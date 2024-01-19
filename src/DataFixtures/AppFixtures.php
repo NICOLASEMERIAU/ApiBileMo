@@ -42,7 +42,7 @@ class AppFixtures extends Fixture
         for ($k = 0; $k < 20; $k++) {
             $product = new Product();
             $product->setTitle('title'.$k);
-            $product->setPrice($k);
+            $product->setPrice(rand(0,100));
             $product->setDescription('description'.$k);
             $product->setFeatures('features'.$k);
             $manager->persist($product);

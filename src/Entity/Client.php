@@ -35,7 +35,7 @@ class Client implements UserInterface, PasswordAuthenticatedUserInterface
     #[Groups(["getUsers"])]
     private ?string $name = null;
 
-    #[ORM\OneToMany(mappedBy: 'client', targetEntity: User::class)]
+    #[ORM\OneToMany(mappedBy: 'client', targetEntity: User::class, cascade: ['remove', 'persist'])]
     private Collection $users;
 
     public function __construct()

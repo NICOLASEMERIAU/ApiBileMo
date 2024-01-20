@@ -24,9 +24,12 @@ class ProductController extends AbstractController
         name: 'api_products',
         methods: ['GET']
     )]
-    public function getAllProducts(ProductRepository $productRepository, SerializerInterface $serializer): JsonResponse
+    public function getAllProducts(ProductRepository $productRepository, SerializerInterface $serializer, Request $request): JsonResponse
     {
-        $productList = $productRepository->findAll();
+        $page = $request->get('page', 1);
+        $limit = $request->get('limit', 3);
+
+        $productList = $productRepository->findAllWithPagination($page, $limit);
         $jsonProductList = $serializer->serialize($productList, 'json', ['groups' => 'getProducts']);
         return new JsonResponse($jsonProductList, Response::HTTP_OK, [], true);
     }

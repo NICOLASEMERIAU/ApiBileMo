@@ -16,6 +16,8 @@ use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
+use Symfony\Contracts\Cache\ItemInterface;
+use Symfony\Contracts\Cache\TagAwareCacheInterface;
 
 class ProductController extends AbstractController
 {
@@ -24,13 +26,23 @@ class ProductController extends AbstractController
         name: 'api_products',
         methods: ['GET']
     )]
-    public function getAllProducts(ProductRepository $productRepository, SerializerInterface $serializer, Request $request): JsonResponse
+    public function getAllProducts(
+        ProductRepository $productRepository,
+        SerializerInterface $serializer,
+        Request $request,
+        TagAwareCacheInterface $cache
+    ): JsonResponse
     {
         $page = $request->get('page', 1);
         $limit = $request->get('limit', 3);
 
-        $productList = $productRepository->findAllWithPagination($page, $limit);
-        $jsonProductList = $serializer->serialize($productList, 'json', ['groups' => 'getProducts']);
+        $idCache = "getAllProducts-" . $page . "-" . $limit;
+
+        $jsonProductList = $cache->get($idCache, function (ItemInterface $item) use ($productRepository, $page, $limit, $serializer) {
+            $item->tag("productsCache");
+            $productList = $productRepository->findAllWithPagination($page, $limit);
+            return $serializer->serialize($productList, 'json', ['groups' => 'getProducts']);
+        });
         return new JsonResponse($jsonProductList, Response::HTTP_OK, [], true);
     }
 
@@ -76,6 +88,25 @@ class ProductController extends AbstractController
         $location = $urlGenerator->generate('api_detailProduct', ['id' => $product->getId()], UrlGeneratorInterface::ABSOLUTE_URL);
 
         return new JsonResponse($jsonProduct, Response::HTTP_CREATED, ["Location" => $location], true);
+    }
+
+
+    #[Route(
+        path: '/api/products/{id}',
+        name: 'api_delete_product',
+        methods: ['DELETE']
+    )]
+    #[IsGranted('ROLE_ADMIN', message: 'Vous n\'avez pas les droits suffisants pour supprimer un produit')]
+    public function deleteProduct(
+        Product $product,
+        EntityManagerInterface $manager,
+        TagAwareCacheInterface $cache
+    ): JsonResponse
+    {
+        $cache->invalidateTags(["productsCache"]);
+        $manager->remove($product);
+        $manager->flush();
+        return new JsonResponse(null, Response::HTTP_NO_CONTENT);
     }
 
 }

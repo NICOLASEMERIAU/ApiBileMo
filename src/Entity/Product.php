@@ -38,7 +38,6 @@ class Product
 
     #[ORM\Column(type: Types::TEXT, nullable: true)]
     #[Groups(["getProducts"])]
-    #[Since]
     private ?string $text = null;
 
     public function getId(): ?int

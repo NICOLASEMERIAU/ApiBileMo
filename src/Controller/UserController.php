@@ -2,10 +2,8 @@
 
 namespace App\Controller;
 
-use App\Entity\Product;
 use App\Entity\User;
 use App\Repository\ClientRepository;
-use App\Repository\ProductRepository;
 use App\Repository\UserRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -14,7 +12,6 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
-use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\Serializer\Normalizer\AbstractNormalizer;
 use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
@@ -28,7 +25,7 @@ class UserController extends AbstractController
     )]
     public function getAllUsers(UserRepository $userRepository, SerializerInterface $serializer): JsonResponse
     {
-        $userList = $userRepository->findAll();
+        $userList = $userRepository->findBy(['client' => $this->getUser()]);
         $jsonUserList = $serializer->serialize($userList, 'json', ['groups' => 'getUsers']);
         return new JsonResponse($jsonUserList, Response::HTTP_OK, [], true);
     }
@@ -54,14 +51,10 @@ class UserController extends AbstractController
         if ($errors->count() > 0) {
             return new JsonResponse($serializer->serialize($errors, 'json'), JsonResponse::HTTP_BAD_REQUEST, [], true);
         }
+        $user->setClient($clientRepository->find($this->getUser()));
 
         $manager->persist($user);
         $manager->flush();
-
-        $content = $request->toArray();
-        $idClient = $content['idClient'] ?? -1;
-
-        $user->setClient($clientRepository->find($idClient));
 
         $jsonUser = $serializer->serialize($user, 'json', ['groups' => 'getUsers']);
 
@@ -91,20 +84,33 @@ class UserController extends AbstractController
         User $currentUser,
         SerializerInterface $serializer,
         EntityManagerInterface $manager,
-        ClientRepository $clientRepository
+        ClientRepository $clientRepository,
+        ValidatorInterface $validator
     ): JsonResponse
     {
-        $updatedUser = $serializer->deserialize($request->getContent(), User::class, 'json', [AbstractNormalizer::OBJECT_TO_POPULATE => $currentUser]);
+        if ($currentUser->getClient() === $this->getUser()) {
+            $updatedUser = $serializer->deserialize($request->getContent(), User::class, 'json', [AbstractNormalizer::OBJECT_TO_POPULATE => $currentUser]);
 
-        $content = $request->toArray();
-        $idClient = $content['idClient'] ?? -1;
+            $content = $request->toArray();
+            $idClient = $content['idClient'] ?? $this->getUser();
 
-        $updatedUser->setClient($clientRepository->find($idClient));
+            $updatedUser->setClient($clientRepository->find($idClient));
+            //On vérifie les erreurs
+            $errors = $validator->validate($updatedUser);
+            if ($errors->count() > 0) {
+                return new JsonResponse($serializer->serialize($errors, 'json'), JsonResponse::HTTP_BAD_REQUEST, [], true);
+            }
+            $manager->persist($updatedUser);
+            $manager->flush();
 
-        $manager->persist($updatedUser);
-        $manager->flush();
+            return new JsonResponse(null, Response::HTTP_NO_CONTENT);
 
-        return new JsonResponse(null, Response::HTTP_NO_CONTENT);
+        } else {
+            //renvoyer une erreur car l'utilisateur n'appartient pas au client ou n'existe pas
+            $message = "Cet utilisateur n'existe pas.";
+            return new JsonResponse($message, Response::HTTP_NON_AUTHORITATIVE_INFORMATION);
+
+        }
     }
 
     #[Route(
@@ -112,11 +118,21 @@ class UserController extends AbstractController
         name: 'api_deleteUser',
         methods: ['DELETE']
     )]
-    public function deleteUser(User $user, EntityManagerInterface $manager): JsonResponse
+    public function deleteUser(
+        User $user,
+        EntityManagerInterface $manager
+    ): JsonResponse
     {
-        $manager->remove($user);
-        $manager->flush();
-        return new JsonResponse(null, Response::HTTP_NO_CONTENT);
+        if ($user->getClient() === $this->getUser()) {
+            $manager->remove($user);
+            $manager->flush();
+            return new JsonResponse(null, Response::HTTP_NO_CONTENT);
+        } else {
+            //renvoyer une erreur car l'utilisateur n'appartient pas au client ou n'existe pas
+            $message = "Cet utilisateur n'existe pas.";
+            return new JsonResponse($message, Response::HTTP_NON_AUTHORITATIVE_INFORMATION);
+
+        }
     }
 
 }

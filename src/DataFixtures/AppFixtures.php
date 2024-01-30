@@ -53,6 +53,7 @@ class AppFixtures extends Fixture
             $product->setPrice(rand(0,100));
             $product->setDescription('description'.$k);
             $product->setFeatures('features'.$k);
+            $product->setText(text: 'text'.$k);
             $manager->persist($product);
         }
 

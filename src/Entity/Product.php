@@ -36,6 +36,11 @@ class Product
     #[Groups(["getProducts"])]
     private ?string $features = null;
 
+    #[ORM\Column(type: Types::TEXT, nullable: true)]
+    #[Groups(["getProducts"])]
+    #[Since]
+    private ?string $text = null;
+
     public function getId(): ?int
     {
         return $this->id;
@@ -85,6 +90,18 @@ class Product
     public function setFeatures(?string $features): static
     {
         $this->features = $features;
+
+        return $this;
+    }
+
+    public function getText(): ?string
+    {
+        return $this->text;
+    }
+
+    public function setText(?string $text): static
+    {
+        $this->text = $text;
 
         return $this;
     }
